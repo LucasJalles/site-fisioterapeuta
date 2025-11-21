@@ -133,7 +133,7 @@ export default function PreAssessment() {
     );
 
     // Número do WhatsApp (substitua pelo número do profissional)
-    const whatsappNumber = "21967092309"; 
+    const whatsappNumber = "5521967092309"; 
     window.open(
       `https://wa.me/${whatsappNumber}?text=${message}`,
       "_blank"
