@@ -172,27 +172,10 @@ export default function PreAssessmentFisioterapia() {
     }
   };
 
-  const handleNext = () => {
-    setValidationAttempted(true);
-    if (validateStep(step)) {
-      setStep((prev) => prev + 1);
-      setValidationAttempted(false);
-      setCurrentValidationError("");
-    }
-  };
-
-  const handleBack = () => {
-    setStep((prev) => prev - 1);
-    setValidationAttempted(false);
-    setCurrentValidationError("");
-  };
-
   // --- Submissão (WhatsApp) ---
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent | Event) => {
     e.preventDefault();
     setValidationAttempted(true);
-
-    if (!validateStep(step)) return;
 
     // Prepara o texto para o WhatsApp
     const bodyText = formData.bodyRegion.length > 0 ? formData.bodyRegion.map(id => bodyAreas.find(t => t.id === id)?.label || id).join(", ") : "Não informado";
@@ -230,6 +213,26 @@ export default function PreAssessmentFisioterapia() {
       setSubmitted(false);
       setLocation("/");
     }, 3000);
+  };
+
+  const handleNext = () => {
+    setValidationAttempted(true);
+    if (validateStep(step)) {
+      if (step < 4) {
+        setStep((prev) => prev + 1);
+      } else {
+        // Se for a última etapa (4), chama a submissão
+        handleSubmit(new Event('submit'));
+      }
+      setValidationAttempted(false);
+      setCurrentValidationError("");
+    }
+  };
+
+  const handleBack = () => {
+    setStep((prev) => prev - 1);
+    setValidationAttempted(false);
+    setCurrentValidationError("");
   };
 
   // --- Componente de Indicador de Etapa ---
@@ -321,7 +324,7 @@ export default function PreAssessmentFisioterapia() {
 
             <div className="space-y-1">
               <Label htmlFor="mainComplaint">Descreva seu principal incômodo <span className="text-red-500">*</span></Label>
-              <Textarea id="mainComplaint" name="mainComplaint" rows={3} value={formData.mainComplaint} onChange={handleInputChange} required aria-required="true" placeholder="Ex: Dor no joelho ao subir escadas, dor no ombro ao levantar o braço, etc." />
+              <Textarea id="mainComplaint" name="mainComplaint" rows={3} value={formData.mainComplaint} onChange={handleInputChange} required aria-required="true" placeholder="Ex: Dor no joelho ao subir escadas, dor na lombar ao ficar muito tempo sentado..." />
             </div>
 
             <div>
@@ -357,10 +360,10 @@ export default function PreAssessmentFisioterapia() {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">3. Funcionalidade e Histórico</h2>
-            <p className="text-gray-600">Detalhes sobre sua mobilidade e histórico de lesões.</p>
+            <p className="text-gray-600">Detalhes sobre como a dor afeta sua rotina e histórico de lesões.</p>
 
             <div>
-              <Label className="mb-3 block font-medium text-gray-700">Sintomas Adicionais (Selecione um ou mais):</Label>
+              <Label className="mb-3 block font-medium text-gray-700">Sintomas Adicionais (Selecione uma ou mais):</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {additionalSymptoms.map((s) => (
                   <div key={s} className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
@@ -372,21 +375,21 @@ export default function PreAssessmentFisioterapia() {
             </div>
 
             <div className="pt-4 p-4 bg-white rounded-lg border border-gray-200">
-              <Label className="mb-3 block font-medium text-gray-700">Sente limitação ou dificuldade ao realizar movimentos? <span className="text-red-500">*</span></Label>
+              <Label className="mb-3 block font-medium text-gray-700">A dor limita seus movimentos ou atividades diárias? <span className="text-red-500">*</span></Label>
               <RadioGroup value={formData.movementLimitation} onValueChange={(value: "sim" | "nao") => handleRadioChange("movementLimitation", value)} className="flex space-x-6">
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="sim" id="movement_sim" />
-                  <Label htmlFor="movement_sim">Sim</Label>
+                  <RadioGroupItem value="sim" id="limitation_sim" />
+                  <Label htmlFor="limitation_sim">Sim</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="nao" id="movement_nao" />
-                  <Label htmlFor="movement_nao">Não</Label>
+                  <RadioGroupItem value="nao" id="limitation_nao" />
+                  <Label htmlFor="limitation_nao">Não</Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="p-4 bg-white rounded-lg border border-gray-200">
-              <Label className="mb-3 block font-medium text-gray-700">Já teve lesões ou cirurgias na região afetada? <span className="text-red-500">*</span></Label>
+              <Label className="mb-3 block font-medium text-gray-700">Você tem histórico de lesões ou cirurgias na região afetada? <span className="text-red-500">*</span></Label>
               <RadioGroup value={formData.injuryHistory} onValueChange={(value: "sim" | "nao") => handleRadioChange("injuryHistory", value)} className="flex space-x-6">
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="sim" id="injury_sim" />
@@ -410,10 +413,10 @@ export default function PreAssessmentFisioterapia() {
         return (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-800">4. Contexto e Hábitos</h2>
-            <p className="text-gray-600">Informações importantes sobre seu histórico e estilo de vida.</p>
+            <p className="text-gray-600">Informações importantes sobre seu histórico médico e hábitos de vida.</p>
 
             <div className="mb-4">
-              <Label className="mb-3 block font-medium text-gray-700">Hábitos de Vida que podem influenciar sua saúde:</Label>
+              <Label className="mb-3 block font-medium text-gray-700">Hábitos de Vida (Selecione uma ou mais):</Label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {lifestyleHabits.map((h) => (
                   <div key={h} className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
@@ -425,8 +428,8 @@ export default function PreAssessmentFisioterapia() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="previousTreatments">Já realizou algum tratamento de Fisioterapia ou Médico recente?</Label>
-              <Textarea id="previousTreatments" name="previousTreatments" rows={3} value={formData.previousTreatments} onChange={handleInputChange} placeholder="Ex: sessões de acupuntura, cirurgia de menisco, uso de colete... (Opcional)" />
+              <Label htmlFor="previousTreatments">Já realizou algum tratamento de Fisioterapia ou Médico para este problema?</Label>
+              <Textarea id="previousTreatments" name="previousTreatments" rows={3} value={formData.previousTreatments} onChange={handleInputChange} placeholder="Ex: Sessões de acupuntura, uso de anti-inflamatórios, cirurgia prévia... (Opcional)" />
             </div>
 
             <div className="space-y-1">
@@ -435,7 +438,7 @@ export default function PreAssessmentFisioterapia() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="additionalInfo">Deseja informar mais alguma coisa à Fisioterapeuta?</Label>
+              <Label htmlFor="additionalInfo">Deseja informar mais alguma coisa ao Fisioterapeuta?</Label>
               <Textarea id="additionalInfo" name="additionalInfo" rows={4} value={formData.additionalInfo} onChange={handleInputChange} placeholder="Informações extras (Opcional)" />
             </div>
             
@@ -464,8 +467,8 @@ export default function PreAssessmentFisioterapia() {
           </button>
 
           <div className="mb-8 text-center">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">Pré-Avaliação de Fisioterapia</h1>
-            <p className="text-gray-600">Preencha para que a Fisioterapeuta Fabiana Rodrigues possa entender sua queixa e direcionar o atendimento.</p>
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">Pré-Avaliação Fisioterapia</h1>
+            <p className="text-gray-600">Preencha para que o fisioterapeuta possa entender sua queixa e direcionar o atendimento.</p>
           </div>
         </div>
 
@@ -475,7 +478,7 @@ export default function PreAssessmentFisioterapia() {
 
           {submitted && (
             <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg shadow-md" role="alert" aria-live="assertive">
-              Dados enviados via WhatsApp para Fabiana Rodrigues! Ela entrará em contato.
+              Dados enviados via WhatsApp! Entraremos em contato.
             </div>
           )}
 
@@ -494,15 +497,17 @@ export default function PreAssessmentFisioterapia() {
               <div /> // Espaçador para manter o alinhamento
             )}
 
-            {step < 4 ? (
-              <Button type="button" onClick={handleNext} className="flex items-center bg-blue-600 hover:bg-blue-700 px-6 py-3 text-lg shadow-md">
-                Próximo <ArrowRight className="w-5 h-5 ml-2" />
+            <Button type="button" onClick={handleNext} className={`flex items-center px-6 py-3 text-lg shadow-md ${step < 4 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}>
+                {step < 4 ? (
+                  <>
+                    Próximo <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5 mr-2" /> Enviar via WhatsApp
+                  </>
+                )}
               </Button>
-            ) : (
-              <Button type="submit" className="flex items-center bg-green-600 hover:bg-green-700 px-6 py-3 text-lg shadow-md">
-                <Send className="w-5 h-5 mr-2" /> Enviar via WhatsApp
-              </Button>
-            )}
           </div>
         </form>
       </div>
