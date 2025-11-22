@@ -1,143 +1,229 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Send, ArrowLeft } from "lucide-react";
+import { Send, ArrowLeft, ArrowRight, User, Stethoscope, Heart, History, CheckCircle } from "lucide-react";
 import { useLocation } from "wouter";
 
-export default function PreAssessment() {
+// --- Tipos de Dados ---
+type FormData = {
+  name: string;
+  email: string;
+  phone: string;
+  age: string;
+  mainComplaint: string;
+  painLevel: string;
+  painDuration: string;
+  bodyRegion: string[]; 
+  additionalSymptoms: string[]; 
+  movementLimitation: "sim" | "nao" | ""; 
+  injuryHistory: "sim" | "nao" | ""; 
+  previousTreatments: string;
+  medications: string;
+  lifestyleHabits: string[]; 
+  additionalInfo: string;
+};
+
+// --- Opções de Seleção (Contexto Fisioterapia) ---
+const bodyAreas = [
+  { id: "coluna_cervical", label: "Coluna Cervical (Pescoço)" },
+  { id: "coluna_lombar", label: "Coluna Lombar (Costas)" },
+  { id: "ombro", label: "Ombro" },
+  { id: "joelho", label: "Joelhos" },
+  { id: "tornozelo_pe", label: "Tornozelo / Pé" },
+  { id: "quadril", label: "Quadril" },
+  { id: "dor_difusa", label: "Dor difusa / Várias regiões" },
+];
+
+const additionalSymptoms = [
+  "Formigamento ou Dormência",
+  "Rigidez Matinal",
+  "Fraqueza Muscular",
+  "Inchaço (Edema)",
+  "Dor ao Repouso",
+  "Dor ao Movimento",
+];
+
+const lifestyleHabits = [
+  "Sedentarismo",
+  "Postura Inadequada no Trabalho",
+  "Prática de Esportes de Alto Impacto",
+  "Estresse Elevado",
+  "Tabagismo",
+];
+
+// --- Funções Auxiliares ---
+
+// Função para formatar o telefone (melhora a UX)
+const formatPhone = (value: string) => {
+  if (!value) return value;
+  const phoneNumber = value.replace(/[^\d]/g, "");
+  const length = phoneNumber.length;
+
+  if (length <= 2) return `(${phoneNumber}`;
+  if (length <= 7) return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(2)}`;
+  if (length <= 11)
+    return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(
+      2,
+      7
+    )}-${phoneNumber.slice(7, 11)}`;
+  return `(${phoneNumber.slice(0, 2)}) ${phoneNumber.slice(
+    2,
+    7
+  )}-${phoneNumber.slice(7, 11)}`;
+};
+
+// --- Componente Principal ---
+export default function PreAssessmentFisioterapia() {
   const [, setLocation] = useLocation();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     phone: "",
     age: "",
-    painType: "",
-    painDuration: "",
-    selectedAreas: [] as string[],
+    mainComplaint: "",
     painLevel: "5",
-    previousInjuries: "",
-    surgeries: "",
-    activities: [] as string[],
+    painDuration: "",
+    bodyRegion: [],
+    additionalSymptoms: [],
+    movementLimitation: "",
+    injuryHistory: "",
+    previousTreatments: "",
     medications: "",
+    lifestyleHabits: [],
     additionalInfo: "",
   });
-
+  const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
+  const [currentValidationError, setCurrentValidationError] = useState("");
 
-  // Áreas do corpo para seleção
-  const bodyAreas = [
-    { id: "head", label: "Cabeça/Pescoço" },
-    { id: "shoulder", label: "Ombro" },
-    { id: "arm", label: "Braço" },
-    { id: "elbow", label: "Cotovelo" },
-    { id: "wrist", label: "Punho/Mão" },
-    { id: "chest", label: "Peito/Costas Altas" },
-    { id: "back", label: "Costas" },
-    { id: "lower_back", label: "Coluna Lombar" },
-    { id: "hip", label: "Quadril" },
-    { id: "knee", label: "Joelho" },
-    { id: "ankle", label: "Tornozelo/Pé" },
-  ];
-
-  // Tipos de limitações
-  const activityLimitations = [
-    "Dificuldade para levantar",
-    "Dificuldade para caminhar",
-    "Dificuldade para subir escadas",
-    "Dificuldade para dormir",
-    "Dificuldade para trabalhar",
-    "Dificuldade para dirigir",
-    "Dificuldade para atividades domésticas",
-    "Dificuldade para exercitar",
-  ];
-
+  // --- Handlers ---
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    const { name, value } = e.target as HTMLInputElement;
+    if (validationAttempted) {
+        setCurrentValidationError("");
+    }
+
+    if (name === "phone") {
+      setFormData((prev) => ({ ...prev, [name]: formatPhone(value) }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleAreaToggle = (areaId: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      selectedAreas: prev.selectedAreas.includes(areaId)
-        ? prev.selectedAreas.filter((id) => id !== areaId)
-        : [...prev.selectedAreas, areaId],
-    }));
+  const handleToggle = (
+    field: "bodyRegion" | "additionalSymptoms" | "lifestyleHabits",
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const list = prev[field];
+      const exists = list.includes(value);
+      return {
+        ...prev,
+        [field]: exists ? list.filter((v) => v !== value) : [...list, value],
+      } as FormData;
+    });
   };
 
-  const handleActivityToggle = (activity: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      activities: prev.activities.includes(activity)
-        ? prev.activities.filter((a) => a !== activity)
-        : [...prev.activities, activity],
-    }));
+  const handleRadioChange = (field: "movementLimitation" | "injuryHistory", value: "sim" | "nao") => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // --- Validação de Etapas ---
+  const validateStep = (currentStep: number): boolean => {
+    setCurrentValidationError("");
+    switch (currentStep) {
+      case 1: // Dados Pessoais: Nome e WhatsApp obrigatórios
+        if (!formData.name.trim()) {
+          setCurrentValidationError("O campo Nome é obrigatório.");
+          return false;
+        }
+        if (formData.phone.replace(/[^\d]/g, "").length < 10) {
+          setCurrentValidationError("O campo WhatsApp é obrigatório e deve ter pelo menos 10 dígitos.");
+          return false;
+        }
+        return true;
+      case 2: // Sintomas e Dor: Queixa Principal obrigatória
+        if (!formData.mainComplaint.trim()) {
+          setCurrentValidationError("O campo Queixa Principal é obrigatório.");
+          return false;
+        }
+        return true;
+      case 3: // Saúde Bucal -> Funcionalidade: Limitação e Histórico obrigatórios
+        if (!formData.movementLimitation) {
+          setCurrentValidationError("Por favor, informe sobre Limitação de Movimento.");
+          return false;
+        }
+        if (!formData.injuryHistory) {
+          setCurrentValidationError("Por favor, informe sobre Histórico de Lesão.");
+          return false;
+        }
+        return true;
+      case 4: // Histórico e Hábitos: Não há campos obrigatórios nesta etapa
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const handleNext = () => {
+    setValidationAttempted(true);
+    if (validateStep(step)) {
+      setStep((prev) => prev + 1);
+      setValidationAttempted(false);
+      setCurrentValidationError("");
+    }
+  };
+
+  const handleBack = () => {
+    setStep((prev) => prev - 1);
+    setValidationAttempted(false);
+    setCurrentValidationError("");
+  };
+
+  // --- Submissão (WhatsApp) ---
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationAttempted(true);
 
-    // Validação básica
-    if (!formData.name || !formData.email || !formData.phone) {
-      alert("Por favor, preencha nome, email e telefone");
-      return;
-    }
+    if (!validateStep(step)) return;
 
-    if (formData.selectedAreas.length === 0) {
-      alert("Por favor, selecione pelo menos uma área de incômodo");
-      return;
-    }
-
-    // Preparar mensagem para WhatsApp
-    const areasText = formData.selectedAreas
-      .map(
-        (areaId) =>
-          bodyAreas.find((a) => a.id === areaId)?.label || areaId
-      )
-      .join(", ");
-
-    const activitiesText =
-      formData.activities.length > 0
-        ? formData.activities.join(", ")
-        : "Nenhuma selecionada";
+    // Prepara o texto para o WhatsApp
+    const bodyText = formData.bodyRegion.length > 0 ? formData.bodyRegion.map(id => bodyAreas.find(t => t.id === id)?.label || id).join(", ") : "Não informado";
+    const symptomsText = formData.additionalSymptoms.length > 0 ? formData.additionalSymptoms.join(", ") : "Nenhum";
+    const habitsText = formData.lifestyleHabits.length > 0 ? formData.lifestyleHabits.join(", ") : "Nenhum";
 
     const message = encodeURIComponent(
-      `*PRÉ-AVALIAÇÃO FISIOTERAPIA*\n\n` +
-        `*Dados Pessoais:*\n` +
-        `Nome: ${formData.name}\n` +
-        `Email: ${formData.email}\n` +
-        `Telefone: ${formData.phone}\n` +
-        `Idade: ${formData.age || "Não informado"}\n\n` +
-        `*Informações da Dor:*\n` +
-        `Áreas de incômodo: ${areasText}\n` +
-        `Tipo de dor: ${formData.painType || "Não especificado"}\n` +
-        `Duração: ${formData.painDuration || "Não especificado"}\n` +
-        `Nível de dor (0-10): ${formData.painLevel}\n\n` +
-        `*Histórico Médico:*\n` +
-        `Lesões anteriores: ${formData.previousInjuries || "Nenhuma"}\n` +
-        `Cirurgias: ${formData.surgeries || "Nenhuma"}\n` +
-        `Medicamentos: ${formData.medications || "Nenhum"}\n\n` +
-        `*Limitações de Atividades:*\n` +
-        `${activitiesText}\n\n` +
-        `*Informações Adicionais:*\n` +
-        `${formData.additionalInfo || "Nenhuma"}`
+      `*PRÉ-AVALIAÇÃO FISIOTERAPIA (Fabiana Rodrigues)*\n\n` +
+      `*1. Dados Pessoais:*\n` +
+      `Nome: ${formData.name}\n` +
+      `Email: ${formData.email || "Não informado"}\n` +
+      `Telefone: ${formData.phone}\n` +
+      `Idade: ${formData.age || "Não informado"}\n\n` +
+      `*2. Sintomas e Dor:*\n` +
+      `Queixa Principal: ${formData.mainComplaint}\n` +
+      `Região afetada: ${bodyText}\n` +
+      `Intensidade da dor (0-10): ${formData.painLevel}\n` +
+      `Duração da dor: ${formData.painDuration || "Não informado"}\n\n` +
+      `*3. Funcionalidade e Histórico:*\n` +
+      `Sintomas Adicionais: ${symptomsText}\n` +
+      `Limitação de Movimento: ${formData.movementLimitation === "sim" ? "Sim" : "Não"}\n` +
+      `Histórico de Lesão/Cirurgia: ${formData.injuryHistory === "sim" ? "Sim" : "Não"}\n\n` +
+      `*4. Contexto e Hábitos:*\n` +
+      `Hábitos de Vida: ${habitsText}\n` +
+      `Tratamentos anteriores (Fisio/Médico): ${formData.previousTreatments || "Nenhum informado"}\n` +
+      `Medicações: ${formData.medications || "Nenhuma"}\n` +
+      `Informações adicionais: ${formData.additionalInfo || "Nenhuma"}`
     );
 
-    // Número do WhatsApp (substitua pelo número do profissional)
-    const whatsappNumber = "5521967092309"; 
-    window.open(
-      `https://wa.me/${whatsappNumber}?text=${message}`,
-      "_blank"
-    );
+    const whatsappNumber = "5521967092309"; // Número da Fabiana Rodrigues
+    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, "_blank");
 
     setSubmitted(true);
     setTimeout(() => {
@@ -146,346 +232,277 @@ export default function PreAssessment() {
     }, 3000);
   };
 
+  // --- Componente de Indicador de Etapa ---
+  const StepIndicator = ({ currentStep }: { currentStep: number }) => {
+    const steps = [
+      { id: 1, title: "Seus Dados", icon: User },
+      { id: 2, title: "Sintomas", icon: Stethoscope },
+      { id: 3, title: "Funcionalidade", icon: CheckCircle }, // Ícone alterado
+      { id: 4, title: "Histórico", icon: History },
+    ];
+
+    return (
+      <div className="flex justify-between items-center mb-10 p-4 bg-white rounded-xl shadow-md">
+        {steps.map((s) => {
+          const isActive = s.id === currentStep;
+          const isCompleted = s.id < currentStep;
+          const ringColor = isCompleted ? "ring-green-500" : isActive ? "ring-blue-600" : "ring-gray-300";
+          const bgColor = isCompleted ? "bg-green-500" : isActive ? "bg-blue-600" : "bg-white";
+          const textColor = isActive ? "font-semibold text-blue-600" : "text-gray-600";
+
+          return (
+            <div key={s.id} className="flex flex-col items-center flex-1 relative">
+              {/* Linha de Conexão (apenas para etapas intermediárias) */}
+              {s.id > 1 && (
+                <div className={`absolute top-4 left-0 w-1/2 h-0.5 ${isCompleted ? "bg-green-500" : "bg-gray-300"} -translate-x-full`}></div>
+              )}
+              
+              {/* Círculo e Ícone */}
+              <div className={`w-10 h-10 flex items-center justify-center rounded-full ring-2 ${ringColor} ${bgColor} transition-all duration-300 z-10`}>
+                <s.icon className={`w-5 h-5 ${isCompleted ? "text-white" : isActive ? "text-white" : "text-gray-400"}`} />
+              </div>
+
+              {/* Título */}
+              <span className={`mt-2 text-xs md:text-sm text-center ${textColor} transition-colors duration-300 hidden sm:block`}>
+                {s.title}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // --- Renderização de Etapas ---
+  const renderStep = () => {
+    const error = validationAttempted ? currentValidationError : "";
+
+    switch (step) {
+      case 1:
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">1. Seus Dados</h2>
+            <p className="text-gray-600">Precisamos de suas informações de contato para dar seguimento à avaliação.</p>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <Label htmlFor="name">Nome Completo <span className="text-red-500">*</span></Label>
+                <Input id="name" name="name" value={formData.name} onChange={handleInputChange} required aria-required="true" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="age">Idade</Label>
+                <Input id="age" type="number" name="age" value={formData.age} onChange={handleInputChange} placeholder="Opcional" />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="Opcional" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="phone">WhatsApp <span className="text-red-500">*</span></Label>
+                <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} required aria-required="true" placeholder="(99) 99999-9999" />
+              </div>
+            </div>
+            
+            {error && step === 1 && (
+              <div className="p-3 bg-red-100 text-red-700 rounded-lg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
+          </div>
+        );
+      case 2:
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">2. Sintomas e Dor</h2>
+            <p className="text-gray-600">Descreva o que está sentindo e onde.</p>
+
+            <div className="space-y-1">
+              <Label htmlFor="mainComplaint">Descreva seu principal incômodo <span className="text-red-500">*</span></Label>
+              <Textarea id="mainComplaint" name="mainComplaint" rows={3} value={formData.mainComplaint} onChange={handleInputChange} required aria-required="true" placeholder="Ex: Dor no joelho ao subir escadas, dor no ombro ao levantar o braço, etc." />
+            </div>
+
+            <div>
+              <Label className="mb-3 block font-medium text-gray-700">Região do Incômodo (Selecione uma ou mais):</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bodyAreas.map((t) => (
+                  <div key={t.id} className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
+                    <Checkbox id={t.id} checked={formData.bodyRegion.includes(t.id)} onCheckedChange={() => handleToggle("bodyRegion", t.id)} />
+                    <Label htmlFor={t.id} className="cursor-pointer">{t.label}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <Label className="block font-medium text-gray-700">Intensidade da Dor (0-10): <span className="font-bold text-blue-600 text-xl">{formData.painLevel}</span></Label>
+              <input type="range" min="0" max="10" name="painLevel" value={formData.painLevel} onChange={handleInputChange} className="w-full h-2 bg-blue-100 rounded-lg appearance-none cursor-pointer range-lg accent-blue-600" aria-valuetext={`Nível de dor: ${formData.painLevel}`} />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="painDuration">Há quanto tempo sente o incômodo?</Label>
+              <Input id="painDuration" name="painDuration" value={formData.painDuration} onChange={handleInputChange} placeholder="Ex: 2 semanas, 3 meses, 1 ano..." />
+            </div>
+            
+            {error && step === 2 && (
+              <div className="p-3 bg-red-100 text-red-700 rounded-lg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">3. Funcionalidade e Histórico</h2>
+            <p className="text-gray-600">Detalhes sobre sua mobilidade e histórico de lesões.</p>
+
+            <div>
+              <Label className="mb-3 block font-medium text-gray-700">Sintomas Adicionais (Selecione um ou mais):</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {additionalSymptoms.map((s) => (
+                  <div key={s} className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
+                    <Checkbox id={s} checked={formData.additionalSymptoms.includes(s)} onCheckedChange={() => handleToggle("additionalSymptoms", s)} />
+                    <Label htmlFor={s} className="cursor-pointer">{s}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 p-4 bg-white rounded-lg border border-gray-200">
+              <Label className="mb-3 block font-medium text-gray-700">Sente limitação ou dificuldade ao realizar movimentos? <span className="text-red-500">*</span></Label>
+              <RadioGroup value={formData.movementLimitation} onValueChange={(value: "sim" | "nao") => handleRadioChange("movementLimitation", value)} className="flex space-x-6">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="sim" id="movement_sim" />
+                  <Label htmlFor="movement_sim">Sim</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="nao" id="movement_nao" />
+                  <Label htmlFor="movement_nao">Não</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="p-4 bg-white rounded-lg border border-gray-200">
+              <Label className="mb-3 block font-medium text-gray-700">Já teve lesões ou cirurgias na região afetada? <span className="text-red-500">*</span></Label>
+              <RadioGroup value={formData.injuryHistory} onValueChange={(value: "sim" | "nao") => handleRadioChange("injuryHistory", value)} className="flex space-x-6">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="sim" id="injury_sim" />
+                  <Label htmlFor="injury_sim">Sim</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="nao" id="injury_nao" />
+                  <Label htmlFor="injury_nao">Não</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            
+            {error && step === 3 && (
+              <div className="p-3 bg-red-100 text-red-700 rounded-lg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
+          </div>
+        );
+      case 4:
+        return (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800">4. Contexto e Hábitos</h2>
+            <p className="text-gray-600">Informações importantes sobre seu histórico e estilo de vida.</p>
+
+            <div className="mb-4">
+              <Label className="mb-3 block font-medium text-gray-700">Hábitos de Vida que podem influenciar sua saúde:</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {lifestyleHabits.map((h) => (
+                  <div key={h} className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 hover:border-blue-400 transition-colors">
+                    <Checkbox id={h} checked={formData.lifestyleHabits.includes(h)} onCheckedChange={() => handleToggle("lifestyleHabits", h)} />
+                    <Label htmlFor={h} className="cursor-pointer">{h}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="previousTreatments">Já realizou algum tratamento de Fisioterapia ou Médico recente?</Label>
+              <Textarea id="previousTreatments" name="previousTreatments" rows={3} value={formData.previousTreatments} onChange={handleInputChange} placeholder="Ex: sessões de acupuntura, cirurgia de menisco, uso de colete... (Opcional)" />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="medications">Toma alguma medicação atualmente?</Label>
+              <Textarea id="medications" name="medications" rows={3} value={formData.medications} onChange={handleInputChange} placeholder="Liste as medicações (Opcional)" />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="additionalInfo">Deseja informar mais alguma coisa à Fisioterapeuta?</Label>
+              <Textarea id="additionalInfo" name="additionalInfo" rows={4} value={formData.additionalInfo} onChange={handleInputChange} placeholder="Informações extras (Opcional)" />
+            </div>
+            
+            {error && step === 4 && (
+              <div className="p-3 bg-red-100 text-red-700 rounded-lg" role="alert" aria-live="assertive">
+                {error}
+              </div>
+            )}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // --- Renderização Principal ---
   return (
-    <div className="min-h-screen bg-white py-12">
+    <div className="min-h-screen bg-gray-50 py-12">
       <div className="container mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
+        <div className="max-w-3xl mx-auto">
           <button
             onClick={() => setLocation("/")}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
+            <ArrowLeft className="w-4 h-4" /> Voltar
           </button>
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
-            Pré-Avaliação Fisioterapêutica
-          </h1>
-          <p className="text-gray-600">
-            Preencha este formulário para que possamos entender melhor sua
-            situação e preparar uma avaliação mais completa.
-          </p>
+
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-2">Pré-Avaliação de Fisioterapia</h1>
+            <p className="text-gray-600">Preencha para que a Fisioterapeuta Fabiana Rodrigues possa entender sua queixa e direcionar o atendimento.</p>
+          </div>
         </div>
 
-        {submitted && (
-          <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg">
-            Obrigado! Seus dados foram enviados via WhatsApp. Entraremos em
-            contato em breve!
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+          {/* Indicador de Progresso Aprimorado */}
+          <StepIndicator currentStep={step} />
 
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-8">
-          {/* Seção 1: Dados Pessoais */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              1. Dados Pessoais
-            </h2>
-            <div className="space-y-4">
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name" className="block mb-2">
-                    Nome Completo *
-                  </Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Seu nome"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="age" className="block mb-2">
-                    Idade
-                  </Label>
-                  <Input
-                    id="age"
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleInputChange}
-                    placeholder="Sua idade"
-                  />
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email" className="block mb-2">
-                    Email *
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="seu@email.com"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone" className="block mb-2">
-                    Telefone/WhatsApp *
-                  </Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    placeholder="(11) 99999-9999"
-                    required
-                  />
-                </div>
-              </div>
+          {submitted && (
+            <div className="mb-6 p-4 bg-green-100 text-green-700 rounded-lg shadow-md" role="alert" aria-live="assertive">
+              Dados enviados via WhatsApp para Fabiana Rodrigues! Ela entrará em contato.
             </div>
+          )}
+
+          {/* Conteúdo da Etapa */}
+          <div className="p-8 bg-white rounded-xl shadow-lg border border-gray-100">
+            {renderStep()}
           </div>
 
-          {/* Seção 2: Áreas de Incômodo */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              2. Onde Você Sente Incômodo? *
-            </h2>
-            <p className="text-gray-600 mb-4">
-              Selecione todas as áreas que incomodam você:
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {bodyAreas.map((area) => (
-                <div key={area.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={area.id}
-                    checked={formData.selectedAreas.includes(area.id)}
-                    onCheckedChange={() => handleAreaToggle(area.id)}
-                  />
-                  <Label htmlFor={area.id} className="cursor-pointer">
-                    {area.label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Ações de Navegação */}
+          <div className="flex justify-between gap-4 pt-6">
+            {step > 1 ? (
+              <Button type="button" variant="outline" onClick={handleBack} className="flex items-center px-6 py-3 text-lg">
+                <ArrowLeft className="w-5 h-5 mr-2" /> Anterior
+              </Button>
+            ) : (
+              <div /> // Espaçador para manter o alinhamento
+            )}
 
-          {/* Seção 3: Tipo e Duração da Dor */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              3. Características da Dor
-            </h2>
-            <div className="space-y-6">
-              <div>
-                <Label className="block mb-3 font-semibold">
-                  Tipo de Dor:
-                </Label>
-                <RadioGroup
-                  value={formData.painType}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      painType: value,
-                    }))
-                  }
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="aguda" id="aguda" />
-                    <Label htmlFor="aguda" className="cursor-pointer">
-                      Dor Aguda (recente)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="cronica" id="cronica" />
-                    <Label htmlFor="cronica" className="cursor-pointer">
-                      Dor Crônica (há muito tempo)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="inflamacao" id="inflamacao" />
-                    <Label htmlFor="inflamacao" className="cursor-pointer">
-                      Inflamação
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="rigidez" id="rigidez" />
-                    <Label htmlFor="rigidez" className="cursor-pointer">
-                      Rigidez/Limitação de movimento
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              <div>
-                <Label className="block mb-3 font-semibold">
-                  Há quanto tempo sente esse incômodo?
-                </Label>
-                <RadioGroup
-                  value={formData.painDuration}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      painDuration: value,
-                    }))
-                  }
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="menos_1_semana" id="menos_1_semana" />
-                    <Label
-                      htmlFor="menos_1_semana"
-                      className="cursor-pointer"
-                    >
-                      Menos de 1 semana
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="1_4_semanas" id="1_4_semanas" />
-                    <Label htmlFor="1_4_semanas" className="cursor-pointer">
-                      1 a 4 semanas
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="1_3_meses" id="1_3_meses" />
-                    <Label htmlFor="1_3_meses" className="cursor-pointer">
-                      1 a 3 meses
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="mais_3_meses" id="mais_3_meses" />
-                    <Label htmlFor="mais_3_meses" className="cursor-pointer">
-                      Mais de 3 meses
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              <div>
-                <Label htmlFor="painLevel" className="block mb-3 font-semibold">
-                  Intensidade da Dor (0 = sem dor, 10 = dor máxima):
-                </Label>
-                <div className="flex items-center gap-4">
-                  <input
-                    id="painLevel"
-                    type="range"
-                    min="0"
-                    max="10"
-                    name="painLevel"
-                    value={formData.painLevel}
-                    onChange={handleInputChange}
-                    className="flex-1"
-                  />
-                  <span className="text-2xl font-bold text-blue-600 min-w-12">
-                    {formData.painLevel}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Seção 4: Histórico Médico */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              4. Histórico Médico
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="previousInjuries" className="block mb-2">
-                  Já teve lesões anteriores nessa área?
-                </Label>
-                <Textarea
-                  id="previousInjuries"
-                  name="previousInjuries"
-                  value={formData.previousInjuries}
-                  onChange={handleInputChange}
-                  placeholder="Descreva lesões anteriores (opcional)"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label htmlFor="surgeries" className="block mb-2">
-                  Já passou por cirurgias?
-                </Label>
-                <Textarea
-                  id="surgeries"
-                  name="surgeries"
-                  value={formData.surgeries}
-                  onChange={handleInputChange}
-                  placeholder="Descreva cirurgias (opcional)"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label htmlFor="medications" className="block mb-2">
-                  Usa alguma medicação?
-                </Label>
-                <Textarea
-                  id="medications"
-                  name="medications"
-                  value={formData.medications}
-                  onChange={handleInputChange}
-                  placeholder="Liste medicações (opcional)"
-                  rows={3}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Seção 5: Limitações de Atividades */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              5. Limitações de Atividades
-            </h2>
-            <p className="text-gray-600 mb-4">
-              Selecione as atividades que você tem dificuldade em realizar:
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activityLimitations.map((activity) => (
-                <div key={activity} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={activity}
-                    checked={formData.activities.includes(activity)}
-                    onCheckedChange={() => handleActivityToggle(activity)}
-                  />
-                  <Label htmlFor={activity} className="cursor-pointer">
-                    {activity}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Seção 6: Informações Adicionais */}
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              6. Informações Adicionais
-            </h2>
-            <Label htmlFor="additionalInfo" className="block mb-2">
-              Há algo mais que você gostaria de informar?
-            </Label>
-            <Textarea
-              id="additionalInfo"
-              name="additionalInfo"
-              value={formData.additionalInfo}
-              onChange={handleInputChange}
-              placeholder="Informações adicionais (opcional)"
-              rows={4}
-            />
-          </div>
-
-          {/* Botão de Envio */}
-          <div className="flex gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setLocation("/")}
-              className="flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              Enviar via WhatsApp
-            </Button>
+            {step < 4 ? (
+              <Button type="button" onClick={handleNext} className="flex items-center bg-blue-600 hover:bg-blue-700 px-6 py-3 text-lg shadow-md">
+                Próximo <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            ) : (
+              <Button type="submit" className="flex items-center bg-green-600 hover:bg-green-700 px-6 py-3 text-lg shadow-md">
+                <Send className="w-5 h-5 mr-2" /> Enviar via WhatsApp
+              </Button>
+            )}
           </div>
         </form>
       </div>
